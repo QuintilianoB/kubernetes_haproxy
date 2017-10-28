@@ -1,0 +1,29 @@
+---
+apiVersion: 'v1'
+kind: 'Pod'
+metadata:
+  name: 'metadata-name'
+  labels:
+    app: 'app-name' # Mesma tag utilizada pelo selector.
+spec:
+  containers:
+  - image: 'php:5.6.31-fpm-alpine3.4' # Nome da imagem. Se não definir a fonte, busca nos repositórios padrões. Docker, etc.
+    name: 'php-fpm'
+    ports:
+      - containerPort: 9000 # Porta exposta pelo container.
+        name: 'php-fpm-port'
+        protocol: 'TCP'
+---
+apiVersion: 'v1'
+kind: 'Service'
+metadata:
+  name: 'php-fpm'
+  labels:
+    haproxy: true
+spec:
+  ports:
+  type: NodePort
+  - port: 9000
+    name: 'php-fpm'
+  selector:
+    app: 'app-name'

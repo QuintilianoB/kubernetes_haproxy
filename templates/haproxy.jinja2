@@ -1,0 +1,62 @@
+global
+    daemon
+    chroot /var/haproxy
+    stats socket /var/haproxy/haproxy.socket mode 660 level admin
+    nbproc  2
+    cpu-map 1 0
+    cpu-map 2 1
+    log     127.0.0.1:514 local0
+    user    haproxy
+    group   haproxy
+    tune.ssl.default-dh-param 2048
+    ssl-default-bind-ciphers ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES256-SHA:ECDHE-ECDSA-DES-CBC3-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:DES-CBC3-SHA:!DSS
+    ssl-default-bind-options no-sslv3 no-tls-tickets
+    ssl-default-server-ciphers ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES256-SHA:ECDHE-ECDSA-DES-CBC3-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:DES-CBC3-SHA:!DSS
+    ssl-default-server-options no-sslv3 no-tls-tickets
+
+defaults
+    mode                    http
+    log                     global
+    option                  httplog
+    option                  dontlognull
+    option                  redispatch
+    option                  httpclose
+    option                  http-server-close
+    option                  forwardfor
+    option                  abortonclose
+    maxconn                 30000
+    retries                 3
+    timeout http-request    10s
+    timeout queue           2s
+    timeout connect         5s
+    timeout client          2m
+    timeout server          2m
+    timeout http-keep-alive 10s
+    timeout check           5s
+
+listen stats
+    bind          192.168.6.133:9000
+    stats uri     /haproxy_stats
+    stats realm   HAProxy\ Statistics
+    stats auth    admin:Soluti2018!
+    stats admin if TRUE
+
+frontend entrada
+    bind *:80
+{% for service in services %}
+    use_backend {{ service.name }} if { hdr_reg(host) -i ^{{ service.name }} }
+{% endfor %}
+    default_backend padrao
+
+{% for service in services %}
+backend {{ service.name }}
+{% for backend in service.backend %}
+    server node1 192.168.6.130:{{ backend.port }}
+    server node2 192.168.6.131:{{ backend.port }}
+    server node3 192.168.6.132:{{ backend.port }}
+{% endfor %}
+
+{% endfor -%}
+
+backend padrao
+    server padrao 192.168.6.130:30001

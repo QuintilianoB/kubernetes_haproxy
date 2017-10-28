@@ -1,0 +1,5 @@
+---
+template_folder: 'templates'
+haproxy_template: 'haproxy.jinja2'
+haproxy_temp_file: 'haproxy/haproxy.cfg'
+haproxy_conf_file: '/etc/haproxy/haproxy.cfg'
