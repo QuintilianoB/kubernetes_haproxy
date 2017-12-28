@@ -1,0 +1,17 @@
+#### Apache ####
+---
+apiVersion: 'v1'
+kind: 'Service'
+metadata:
+  name: 'apache-test' # This is used by HAproxy as backend identification.
+  labels:
+    service: 'http'
+    haproxy: 'true' # Set to true so the service is add in haproxy.cfg.
+    haproxy_port: '80' # Service port exposed by HAproxy.
+spec:
+  type: 'NodePort'
+  ports:
+  - port: 80
+    name: 'http'
+  selector:
+    app: 'http'

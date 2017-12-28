@@ -1,14 +1,23 @@
 # Kubernetes -> Haproxy
 
-Script em Python 3 que lê as mudanças de serviço da API do Kubernetes
-para atualizar as configuração do HAProxy.
+A script which read Kubernetes service's API and
+update Haproxy config as it changes.
 
-Procura pelo label "haproxy: true" em um serviço.
-É necessário declarar o tipo da porta como **NodePort**.
+It searchs for "haproxy: true" label in the service declaration.
+The service type need to be a **NodePort**
 
+Before start, you should set up ***config.yaml*** file.
 
-**Pré-requisitos:**
+**Dependencies:**
+- Systemd SO
 - Python 3.6
     - Kubernetes API 4.0.0a
     - Jinja 2
-- Kubernetes 1.8.1
+- Kubernetes 1.8.1.
+- Kubernetes 1.8+ should work but I haven't tested it yet.
+
+In the ***templates*** folder you can find a basic template for haproxy,
+with or without SSL.
+
+In the ***example*** folder there are pod/service declaration for kubernetes
+wich work with this HAproxy integration.
