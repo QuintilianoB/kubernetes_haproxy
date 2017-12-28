@@ -1,5 +1,4 @@
 # Kubernetes -> Haproxy
-
 A script which read Kubernetes service's API and
 update Haproxy config as it changes.
 
@@ -21,3 +20,14 @@ with or without SSL.
 
 In the ***example*** folder there are pod/service declaration for kubernetes
 wich work with this HAproxy integration.
+
+If you set it on crontab, do as:
+```
+$ crontab -l
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+*  *  *  *  *  python3 /home/haproxy/client-python/haproxy_conf.py
+```
+
+@TODO
+    - Instead of cron, use watch from k8s api.
