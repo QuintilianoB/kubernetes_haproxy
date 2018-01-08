@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-from kubernetes import client, config
+from kubernetes import client, config, watch
 from jinja2 import Environment, FileSystemLoader, exceptions
 from sys import exit
 from subprocess import call, SubprocessError
@@ -18,7 +18,7 @@ class HaproxyConfig():
     def __init__(self):
         self.path = path.dirname(path.realpath(__file__)) + '/'
         logging.basicConfig(filename=path.dirname(path.realpath(__file__)) + '/client-python.log', level=logging.INFO,
-                            format='%(asctime)s %(message)s')
+                            format='%(asctime)s - %(levelname)s - %(message)s')
 
         try:
             self.conf = yaml.load(open(self.path + 'config.yaml'))
@@ -27,9 +27,15 @@ class HaproxyConfig():
             exit(1)
 
         config.load_kube_config()
-        self.services = []
-        self.pool()
-        self.control()
+        self.v1 = client.CoreV1Api()
+        self.services = {}
+
+        try:
+            self.pool()
+        except ValueError as error:
+            logging.error(error)
+
+        self.watcher()
 
     def render_haproxy_cfg(self):
         try:
@@ -50,35 +56,70 @@ class HaproxyConfig():
         try:
             with open(self.path + self.conf['haproxy_temp_file'], 'w') as f:
                 f.write(output)
+                logging.info("New config file wrote")
         except EnvironmentError as error:
             logging.error("New haproxy config file could not be writen: {}".format(error))
 
+        self.control()
+
     # Don't need to check if service already exist. K8s already do it.
     def pool(self):
-        v1 = client.CoreV1Api()
-        list = v1.list_service_for_all_namespaces(watch=False)
-
-        for item in list.items:
+        service_list = self.v1.list_service_for_all_namespaces(watch=False)
+        for item in service_list.items:
             labels = item.metadata.labels
-            ports = item.spec.ports
             # K8s's labels are only strings. Python's True/False may not be used.
-            if 'haproxy' in labels and labels['haproxy'] == 'true':
-                info = {}
-                info['name'] = item.metadata.name
-                if labels['haproxy_port']:
-                    info['haproxy_port'] = labels['haproxy_port']
-                    backend = []
-                    # The same service can be listening in many ports.
-                    for port in ports:
-                        backend.append({'port': port.node_port})
-                    info['backend'] = backend
-                else:
-                    logging.error('Could not find configs on Kubernetes services {}. Check your service declaration.'
-                          .format(item.metadata.name))
+            if 'haproxy' in labels and labels['haproxy'] == 'true' and item.spec.type == 'NodePort':
+                if 'url' in labels.keys():
+                    info = {}
+                    info['url'] = labels['url']
 
-                self.services.append(info)
+                    # Each service can have more than one NodePort. It can create on backend for each but I ll lock it
+                    # as one port per service. There are others problems if you choose to create multiple backends with
+                    # only one service.
+                    if len(item.spec.ports) == 1:
+                        info['node_port'] = item.spec.ports[0].node_port
+                        logging.info("Service {} found".format(item.metadata.name))
+                    else:
+                        error_message = 'More than one port was declared on {} service.'.format(item.metadata.name)
+                        raise ValueError(error_message)
+
+                    self.services[item.metadata.name] = info
 
         self.render_haproxy_cfg()
+
+    # https://github.com/kubernetes-incubator/client-python
+    # Almost identical to pool function. The problem is: Pool uses objects from kubernetes API and Watcher uses a dict.
+    def watcher(self):
+        w = watch.Watch()
+        # We will watch for every service, regardless of namespaces. It's easier when mantaining a lot of pods
+        # with a namespace for each.
+        for event in w.stream(self.v1.list_service_for_all_namespaces):
+            labels = event['raw_object']['metadata']['labels']
+            item = event['raw_object']['spec']
+            if 'haproxy' in labels and labels['haproxy'] == 'true' and item['type'] == 'NodePort':
+                if 'url' in labels.keys():
+                    info = {}
+                    service_name = event['raw_object']['metadata']['name']
+                    # If is a service inclusion and it doesn't existed when HAproxy started.
+                    if event['type'] == 'ADDED':
+                        if not service_name in self.services.keys():
+                            info['url'] = labels['url']
+
+                            if len(event['raw_object']['spec']['ports']) == 1:
+                                info['node_port'] = event['raw_object']['spec']['ports'][0]['nodePort']
+                                logging.info("Service {} included".format(service_name))
+                            else:
+                                error_message = 'More than one port was declared on {} service.'.format(service_name)
+                                raise ValueError(error_message)
+
+                            self.services[event['raw_object']['metadata']['name']] = info
+                            self.render_haproxy_cfg()
+
+                    elif event['type'] == 'DELETED':
+                        if service_name in self.services.keys():
+                            self.services.pop(service_name)
+                            logging.info("Service {} removed".format(service_name))
+                            self.render_haproxy_cfg()
 
     def sha1sum(self, filename):
         with open(filename, mode='rb') as f:
@@ -139,9 +180,8 @@ class HaproxyConfig():
                 copyfile(self.path + self.conf['haproxy_temp_file'], self.conf['haproxy_conf_file'])
             except EnvironmentError as error:
                 logging.error("Unable to replace haproxy.cfg: {}".format(error))
-                exit(1)
             else:
-                logging.info("New configuration file created.")
+                logging.info("Config file replaced.")
                 self.restart()
 
 

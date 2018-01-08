@@ -42,22 +42,19 @@ listen stats
     stats admin if TRUE
 
 frontend entrada
-    # Swap 'bind' lines if you wish to use TLS
-    bind *:80
-    #bind *:443 ssl crt /var/haproxy/cert/your_ssl_cert_and_key.crt ca-file verify none transparent
-{% for service in services %}
-    use_backend {{ service.name }} if { hdr_reg(host) -i ^{{ service.name }} }
+    # Use "bind *:80" if you don't need ssl.
+    bind 192.168.6.133:443 ssl crt /var/haproxy/cert/servidor.pem ca-file /var/haproxy/cert/ca_base.crt verify none transparent
+{% for key in services %}
+    use_backend {{ key }} if { hdr_reg(host) -i ^{{ key }} }
 {% endfor %}
     default_backend padrao
 
-{% for service in services %}
-backend {{ service.name }}
-{% for backend in service.backend %}
+{% for key, value in services.items() %}
+    backend {{ key }}
     # Kubernetes nodes identification and IPs
-    server node1 192.168.6.130:{{ backend.port }}
-    server node2 192.168.6.131:{{ backend.port }}
-    server node3 192.168.6.132:{{ backend.port }}
-{% endfor %}
+    server node1 192.168.6.130:{{ value["node_port"] }}
+    server node2 192.168.6.131:{{ value["node_port"] }}
+    server node3 192.168.6.132:{{ value["node_port"] }}
 
 {% endfor -%}
 
