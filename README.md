@@ -5,7 +5,7 @@ update Haproxy config as it changes.
 It watches for "haproxy: true" label in the service declaration.
 The service type need to be a **NodePort**
 
-Before start, you should set up ***config.yaml*** file.
+Before start, you should set up ***database_config.yaml*** file.
 
 **Dependencies:**
 - Systemd SO

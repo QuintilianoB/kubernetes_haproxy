@@ -13,6 +13,27 @@ import yaml
 import hashlib
 import logging
 
+""" 
+TODO - Console para lançar a execução manualmente, sem precisar usar o watcher.
+TODO - Mudar a forma de lançar exceção. Não posso interromper a execução com o watcher.
+TODO - Unificar as funções pool e watcher. Uma vem como objeto a outra como dict.
+TODO - Utilizar pickle para armazenar o estado dos serviços. Criar uma blacklist de serviços com erro.
+TODO - Adicionar um semáforo no watcher para evitar que, durante a criação de serviços instantaneamente consecutivos,
+       o proxy reverso não precise ser reiniciado N vezes quanto N serviços criados.
+
+Testes:
+    - Serviço já existe quando o script ativa. OK
+    - Criação de serviço com o script ativo. OK
+    - Removação de serviço com o script ativo. OK
+    - Erro na configuração de serviços:
+        - Sem URL.
+        - Com URL inválida.
+        - Com nome de serviço errado.
+        - Com nome de serviço duplicado.
+    - Erro ao gravar arquivo do HAproxy.
+    - Erro ao reiniciar o HAproxy.    
+"""
+
 
 class HaproxyConfig():
     def __init__(self):
@@ -21,7 +42,7 @@ class HaproxyConfig():
                             format='%(asctime)s - %(levelname)s - %(message)s')
 
         try:
-            self.conf = yaml.load(open(self.path + 'config.yaml'))
+            self.conf = yaml.load(open(self.path + 'database_config.yaml'))
         except (OSError, IOError) as error:
             logging.error("Failed at load config file: {}".format(error))
             exit(1)
